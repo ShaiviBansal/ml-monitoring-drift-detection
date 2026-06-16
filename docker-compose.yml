@@ -32,6 +32,8 @@ services:
       DB_HOST: postgres
     ports:
       - "8501:8501"
+    volumes:
+      - ./reference_data.csv:/app/reference_data.csv
     depends_on:
       - postgres
 
