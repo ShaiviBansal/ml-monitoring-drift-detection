@@ -1,0 +1,49 @@
+name: Build and Smoke Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f Dockerfile.api -t ml-monitoring-api .
+
+      - name: Build dashboard image
+        run: docker build -f Dockerfile.dashboard -t ml-monitoring-dashboard .
+
+      - name: Start Postgres for smoke test
+        run: |
+          docker run -d --name test_postgres \
+            -e POSTGRES_USER=mluser \
+            -e POSTGRES_PASSWORD=mlpassword \
+            -e POSTGRES_DB=ml_monitoring \
+            -p 5432:5432 \
+            postgres:15
+          sleep 8
+
+      - name: Start API container
+        run: |
+          docker run -d --name test_api \
+            --network host \
+            -e DB_HOST=localhost \
+            ml-monitoring-api
+          sleep 5
+
+      - name: Smoke test - check API health endpoint
+        run: |
+          curl --fail http://localhost:8000/ || (docker logs test_api && exit 1)
+
+      - name: Clean up containers
+        if: always()
+        run: |
+          docker stop test_api test_postgres || true
+          docker rm test_api test_postgres || true
